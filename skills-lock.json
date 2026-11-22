@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "better-design": {
+      "source": "marvkr/better-design",
+      "sourceType": "github",
+      "skillPath": "skills/better-design/SKILL.md",
+      "computedHash": "36226d35cd15e91951fa8f3a895e4e95248e73451e17c42c89c50bd73aefb56d"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "2b8264b52e65ed93f48962cf4daa657f055f5f6533d600071edd13b78432ef3e"
+    }
+  }
+}

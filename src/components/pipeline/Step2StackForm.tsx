@@ -1,0 +1,19 @@
+import { Plus, X } from 'lucide-react'
+import { STACK_PRESETS } from '../../core/presets/stackPresets'
+import type { DependencySpec, EnvVarSpec, ProjectSpec } from '../../types/spec.types'
+
+interface Props { project: ProjectSpec; onChange: (project: ProjectSpec) => void }
+export function Step2StackForm({ project, onChange }: Props) {
+  const stack = project.stack
+  const set = (patch: Partial<ProjectSpec['stack']>) => onChange({ ...project, stack: { ...stack, ...patch } })
+  const setDeps = (kind: 'runtime' | 'dev', deps: DependencySpec[]) => set({ dependencies: { ...stack.dependencies, [kind]: deps } })
+  const setEnv = (index: number, patch: Partial<EnvVarSpec>) => set({ envVars: stack.envVars.map((env, i) => i === index ? { ...env, ...patch } : env) })
+  return <div className="step-editor">
+    <div className="editor-title">Stack & environment<span> LAYER 02</span></div>
+    <label className="editor-field"><span>LOAD STACK PRESET</span><select value="" onChange={(e) => { const preset = STACK_PRESETS.find((p) => p.id === e.target.value); if (preset) set(structuredClone(preset.stack)) }}><option value="">Choose a starting stack…</option>{STACK_PRESETS.map((p) => <option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
+    {(['architecturePattern', 'frontend', 'backend', 'database', 'authStrategy', 'stateManagement'] as const).map((key) => <label className="editor-field" key={key}><span>{key.replace(/[A-Z]/g, (c) => ` ${c}`).toUpperCase()}</span><input value={stack[key]} onChange={(e) => set({ [key]: e.target.value })} /></label>)}
+    <label className="editor-field"><span>FOLDER TREE · ONE PATH PER LINE</span><textarea className="tree-input" rows={6} value={stack.folderStructure.join('\n')} onChange={(e) => set({ folderStructure: e.target.value.split('\n') })} /></label>
+    {(['runtime', 'dev'] as const).map((kind) => <section className="editor-section" key={kind}><div className="editor-section-title">{kind === 'runtime' ? 'RUNTIME' : 'DEVELOPMENT'} DEPENDENCIES</div>{stack.dependencies[kind].map((dep, i) => <div className="editor-row" key={`${kind}-${i}`}><input aria-label="Dependency name" value={dep.name} onChange={(e) => setDeps(kind, stack.dependencies[kind].map((d, at) => at === i ? { ...d, name: e.target.value } : d))} /><input className="version-input" aria-label="Dependency version" value={dep.version} onChange={(e) => setDeps(kind, stack.dependencies[kind].map((d, at) => at === i ? { ...d, version: e.target.value } : d))} /><button className="editor-icon" aria-label="Remove dependency" onClick={() => setDeps(kind, stack.dependencies[kind].filter((_, at) => at !== i))}><X size={13} /></button></div>)}<button className="editor-add" onClick={() => setDeps(kind, [...stack.dependencies[kind], { name: 'package-name', version: '^1.0.0' }])}><Plus size={12} /> ADD DEPENDENCY</button></section>)}
+    <section className="editor-section"><div className="editor-section-title">ENVIRONMENT MANIFEST</div>{stack.envVars.map((env, i) => <div className="editor-block" key={`env-${i}`}><div className="editor-row"><input aria-label="Environment key" value={env.key} onChange={(e) => setEnv(i, { key: e.target.value })} /><button className="editor-icon" aria-label="Remove environment key" onClick={() => set({ envVars: stack.envVars.filter((_, at) => at !== i) })}><X size={13} /></button></div><div className="editor-row"><select aria-label="Environment visibility" value={env.scope} onChange={(e) => setEnv(i, { scope: e.target.value as EnvVarSpec['scope'] })}><option value="public">PUBLIC</option><option value="secret">SECRET</option></select><input aria-label="Environment description" value={env.description} onChange={(e) => setEnv(i, { description: e.target.value })} /></div></div>)}<button className="editor-add" onClick={() => set({ envVars: [...stack.envVars, { key: 'NEW_ENV_KEY', scope: 'public', description: '' }] })}><Plus size={12} /> ADD ENV KEY</button></section>
+  </div>
+}
