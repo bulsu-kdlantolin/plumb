@@ -28,3 +28,6 @@ dist-ssr
 .impeccable/
 DESIGN.md
 AGENTS.md
+.codex
+.github
+.zed

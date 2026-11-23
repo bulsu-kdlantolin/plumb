@@ -95,7 +95,7 @@ export const DEFAULT_PROJECT: ProjectSpec = {
   },
   designTokens: {
     presetId: 'precision-drafting', themePolarity: 'dark',
-    colors: { canvas: '#0C0D0E', panel: '#121316', primary: '#F2F0EB', accent: '#FF4F00', blueprint: '#2B7FFF' },
+    colors: { canvas: '#0C0D0E', panel: '#121316', primary: '#F2F0EB', accent: '#E15A32', blueprint: '#2B7FFF' },
     typography: { heading: 'Space Grotesk', body: 'Plus Jakarta Sans', mono: 'JetBrains Mono', scale: ['10px', '12px', '14px', '18px', '28px'] },
     geometry: { borderRadius: [0, 2], borderWidth: 1, gridSize: 16 },
     bannedPatterns: ['purple gradients', 'ambient blur blobs', 'floating shadow cards', 'spring animations'],

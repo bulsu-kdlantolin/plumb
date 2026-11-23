@@ -13,7 +13,7 @@ export type EntityNodeType = Node<EntityNodeData, 'entity'>
 export function EntityNode({ data, selected }: NodeProps<EntityNodeType>) {
   return <div className={`erd-node${selected ? ' is-selected' : ''}`}>
     <div className="erd-node-top" />
-    <header className="erd-node-head"><span className="erd-node-name">{data.label}</span><span className="erd-node-tag">TABLE</span></header>
+    <header className="erd-node-head"><span className="erd-node-name">{data.label}</span><span className="erd-node-tag">Table</span></header>
     <div className="erd-node-fields">
       {data.fields.map((field) => <div className="erd-node-field" key={field.id}>
         <Handle id={`${field.id}-target`} type="target" position={Position.Left} className="erd-handle" />
@@ -22,6 +22,6 @@ export function EntityNode({ data, selected }: NodeProps<EntityNodeType>) {
         <Handle id={`${field.id}-source`} type="source" position={Position.Right} className="erd-handle" />
       </div>)}
     </div>
-    <footer className="erd-node-foot"><span>RLS · {data.rlsPolicy ? 'ACTIVE' : 'UNSET'}</span><span>{data.indexes.length} IDX</span></footer>
+    <footer className="erd-node-foot"><span>RLS · {data.rlsPolicy ? 'Active' : 'Unset'}</span><span>{data.indexes.length} indexes</span></footer>
   </div>
 }

@@ -6,6 +6,7 @@ import { RightCompiler } from '../components/layout/RightCompiler'
 import { TopBar } from '../components/layout/TopBar'
 import { useSpecStore } from '../store/useSpecStore'
 import { compileProject, projectSlug } from '../core/compiler/compileProject'
+import { runSlopLinter } from '../core/linter/runSlopLinter'
 
 export default function App() {
   const project = useSpecStore((state) => state.project)
@@ -23,6 +24,7 @@ export default function App() {
   const [exportError, setExportError] = useState('')
   const shortcutDialogRef = useRef<HTMLElement>(null)
   const files = useMemo(() => compileProject(project), [project])
+  const alignmentScore = useMemo(() => runSlopLinter(project).alignmentScore, [project])
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => {
@@ -78,14 +80,14 @@ export default function App() {
   }, [shortcutHelpOpen])
 
   return <div className="workbench">
-    <TopBar projectName={project.name} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setShortcutHelpOpen(true)} exporting={exporting} exportAvailable={hydrated} saveStatus={saveStatus} />
+    <TopBar projectName={project.name} alignmentScore={alignmentScore} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setShortcutHelpOpen(true)} exporting={exporting} exportAvailable={hydrated} saveStatus={saveStatus} />
     <div className="shell" inert={!hydrated} aria-busy={!hydrated}>
       <LeftRail activeStep={activeStep} onSelectStep={setActiveStep} counts={counts} project={project} saveStatus={saveStatus} onChangeProject={(next) => updateProject(() => next)} />
       <CenterCanvas project={project} activeStep={activeStep} onSelectStep={setActiveStep} onUpdateProject={(next) => updateProject(() => next)} />
-      <RightCompiler project={project} files={files} activeFile={compilerTab} onSelectFile={setCompilerTab} onFix={setActiveStep} />
+      <RightCompiler project={project} files={files} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={setActiveStep} />
     </div>
-    {exportError && <div className="export-error" role="alert">{exportError}<button onClick={() => setExportError('')} aria-label="Dismiss export error">×</button></div>}
-    {shortcutHelpOpen && <div className="shortcut-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShortcutHelpOpen(false) }}><section ref={shortcutDialogRef} className="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" onKeyDown={(event) => { if (event.key === 'Tab') event.preventDefault() }}><header><h2 id="shortcut-title">Keyboard shortcuts</h2><button className="editor-icon" onClick={() => setShortcutHelpOpen(false)} aria-label="Close keyboard shortcuts">×</button></header><div><span>Export context bundle</span><kbd>⌘ / Ctrl + E</kbd></div><div><span>Show this panel</span><kbd>⌘ / Ctrl + K</kbd></div><div><span>Close this panel</span><kbd>Esc</kbd></div></section></div>}
+    {exportError && <div className="export-error" role="alert">{exportError}<button onClick={() => setExportError('')} aria-label="Dismiss export error" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]">×</button></div>}
+    {shortcutHelpOpen && <div className="shortcut-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShortcutHelpOpen(false) }}><section ref={shortcutDialogRef} className="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" onKeyDown={(event) => { if (event.key === 'Tab') event.preventDefault() }}><header><h2 id="shortcut-title">Keyboard shortcuts</h2><button className="editor-icon focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => setShortcutHelpOpen(false)} aria-label="Close keyboard shortcuts">×</button></header><div><span>Export context bundle</span><kbd>⌘ / Ctrl + E</kbd></div><div><span>Show this panel</span><kbd>⌘ / Ctrl + K</kbd></div><div><span>Close this panel</span><kbd>Esc</kbd></div></section></div>}
     <span className="sr-only" aria-live="polite">{exporting ? 'Exporting context bundle' : ''}</span>
     {!hydrated && <span aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)' }}>Loading local project</span>}
   </div>

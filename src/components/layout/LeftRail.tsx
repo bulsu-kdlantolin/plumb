@@ -18,13 +18,13 @@ interface LeftRailProps {
 
 export function LeftRail({ activeStep, onSelectStep, counts, project, saveStatus, onChangeProject }: LeftRailProps) {
   const editorProps = { project, onChange: onChangeProject }
-  const saveLabel = { loading: 'LOADING LOCAL SPEC', saving: 'SAVING LOCAL SPEC', saved: 'LOCAL SPEC SAVED', offline: 'IN-MEMORY ONLY' }[saveStatus]
+  const saveLabel = { loading: 'Loading local spec', saving: 'Saving local spec', saved: 'Local spec saved', offline: 'In-memory only' }[saveStatus]
   return (
     <aside className="left-rail">
-      <div className="pane-heading"><span className="pane-title">WORKBENCH PIPELINE</span><span className="pane-index">4 STEPS</span></div>
+      <div className="pane-heading"><span className="pane-title">Workbench pipeline</span><span className="pane-index">4 steps</span></div>
       <nav className="pipeline-list" aria-label="Architecture pipeline">
         {steps.map((step, index) => (
-          <button key={step} className="pipeline-tab" aria-current={activeStep === index ? 'step' : undefined} onClick={() => onSelectStep(index)}>
+          <button key={step} className="pipeline-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" aria-current={activeStep === index ? 'step' : undefined} onClick={() => onSelectStep(index)}>
             <span className="step-number">[0{index + 1}]</span><span className="step-title">{step}</span>{index < activeStep ? <Check className="step-check" size={13} /> : <Circle size={10} />}
           </button>
         ))}
@@ -36,7 +36,7 @@ export function LeftRail({ activeStep, onSelectStep, counts, project, saveStatus
         {activeStep === 3 && <Step4DesignForm {...editorProps} />}
       </div>
       <div className="rail-footer">
-        <span>{counts.entities} ENTITIES · {counts.endpoints} API CONTRACTS</span>
+        <span>{counts.entities} entities · {counts.endpoints} API contracts</span>
         <span className="rail-save-status" role="status" aria-live="polite"><i className="status-dot" data-status={saveStatus} />{saveLabel}</span>
       </div>
     </aside>

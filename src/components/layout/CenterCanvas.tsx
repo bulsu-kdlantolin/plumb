@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { ReactFlow, Background, Controls, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
+import { ReactFlow, Background, Controls, MarkerType, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import dagre from 'dagre'
 import { ArrowDownToLine, Database, LayoutGrid, Network, Palette, Rows3 } from 'lucide-react'
 import { DesignPreviewCard } from '../canvas/DesignPreviewCard'
@@ -50,6 +50,11 @@ function getErdEdges(project: ProjectSpec): CanvasEdge[] {
       type: 'smoothstep',
       label: field.onDelete ? `ON DELETE ${field.onDelete.toUpperCase()}` : undefined,
       className: 'erd-edge',
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-muted)', width: 12, height: 12 },
+      labelStyle: { fill: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 10 },
+      labelBgStyle: { fill: 'var(--bg-panel)', stroke: 'var(--border-strong)', strokeWidth: 1 },
+      labelBgPadding: [6, 3],
+      labelBgBorderRadius: 2,
     }]
   }))
 }
@@ -58,7 +63,7 @@ function getTopology(project: ProjectSpec): { nodes: CanvasNode[]; edges: Canvas
   const nodes: CanvasNode[] = []
   const links: [string, string][] = []
   const push = (id: string, label: string, detail: string, kind: ServiceNodeData['kind']) => {
-    nodes.push({ id, type: 'service', position: { x: 0, y: 0 }, data: { label, detail, kind, palette: { accent: project.designTokens.colors.accent ?? '#FF4F00', panel: project.designTokens.colors.panel ?? '#121316', primary: project.designTokens.colors.primary ?? '#F2F0EB', secondary: project.designTokens.colors.secondary ?? '#A0A5B1' } } })
+    nodes.push({ id, type: 'service', position: { x: 0, y: 0 }, data: { label, detail, kind } })
   }
   push('client', 'Client App', project.stack.frontend || 'Frontend client', 'client')
   push('api', 'API Layer', project.stack.backend || 'API service', 'api')
@@ -70,19 +75,19 @@ function getTopology(project: ProjectSpec): { nodes: CanvasNode[]; edges: Canvas
     push(id, hook.provider || `Webhook ${index + 1}`, `${hook.event || 'External event'} → ${hook.path || '/webhook'}`, 'webhook')
     links.push([id, 'api'])
   })
-  return { nodes, edges: links.map(([source, target], index) => ({ id: `topology-${index}`, source, target, type: 'smoothstep', className: 'topology-edge' })) }
+  return { nodes, edges: links.map(([source, target], index) => ({ id: `topology-${index}`, source, target, type: 'smoothstep', className: 'topology-edge', markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-muted)', width: 12, height: 12 } })) }
 }
 
 function layoutNodes(nodes: CanvasNode[], edges: CanvasEdge[], direction: 'LR' | 'TB'): CanvasNode[] {
   const graph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({ rankdir: direction, nodesep: 44, ranksep: 100, marginx: 36, marginy: 36 })
-  nodes.forEach((node) => graph.setNode(node.id, { width: node.type === 'entity' ? 258 : 230, height: node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 88 }))
+  graph.setGraph({ rankdir: direction, nodesep: 60, ranksep: 110, marginx: 36, marginy: 36 })
+  nodes.forEach((node) => graph.setNode(node.id, { width: node.type === 'entity' ? 258 : 250, height: node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 104 }))
   edges.forEach((edge) => graph.setEdge(edge.source, edge.target))
   dagre.layout(graph)
   return nodes.map((node) => {
     const point = graph.node(node.id)
-    const width = node.type === 'entity' ? 258 : 230
-    const height = node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 88
+    const width = node.type === 'entity' ? 258 : 250
+    const height = node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 104
     return { ...node, position: { x: point.x - width / 2, y: point.y - height / 2 } }
   })
 }
@@ -144,16 +149,16 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
     <div className="canvas-toolbar canvas-toolbar-views">
       <div className="canvas-context"><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
       <div className="canvas-view-switcher" role="tablist" aria-label="Canvas view">
-        {tabs.map(({ id, label, icon: Icon }) => <button key={id} role="tab" aria-selected={view === id} className="canvas-view-tab" onClick={() => changeView(id)}><Icon size={13} />{label}</button>)}
+        {tabs.map(({ id, label, icon: Icon }) => <button key={id} role="tab" aria-selected={view === id} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => changeView(id)}><Icon size={13} />{label}</button>)}
       </div>
     </div>
     <div className="canvas-flow-tools">
       <span className="canvas-coordinate">{view === 'erd' ? `${project.data.entities.length} TABLES / ${baseErdEdges.length} RELATIONS` : view === 'topology' ? `${topology.nodes.length} SERVICES / ${topology.edges.length} LINKS` : 'DESIGN TOKENS / LIVE'}</span>
-      {view !== 'preview' && <button className="flow-action" onClick={autoLayout}><LayoutGrid size={13} /> AUTO-LAYOUT</button>}
+      {view !== 'preview' && <button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><LayoutGrid size={13} /> AUTO-LAYOUT</button>}
       {view === 'preview' && <span className="canvas-coordinate"><ArrowDownToLine size={12} /> EXPORT PREVIEW</span>}
     </div>
     <div className={`canvas-scroll canvas-flow-area ${view === 'preview' ? 'preview-area' : ''}`}>
-      {view === 'preview' ? <DesignPreviewCard project={project} /> : view === 'erd' && project.data.entities.length === 0 ? <div className="canvas-empty-state"><Database size={22} /><h2>No entities in the schema</h2><p>Add your first entity to map fields and relationships.</p><button className="flow-action" onClick={() => onSelectStep(2)}>OPEN DATA EDITOR</button></div> : <ReactFlow<CanvasNode, CanvasEdge>
+      {view === 'preview' ? <DesignPreviewCard project={project} /> : view === 'erd' && project.data.entities.length === 0 ? <div className="canvas-empty-state"><Database size={22} /><h2>No entities in the schema</h2><p>Add your first entity to map fields and relationships.</p><button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onSelectStep(2)}>Open data editor</button></div> : <ReactFlow<CanvasNode, CanvasEdge>
         key={view}
         nodes={flowNodes}
         edges={flowEdges}
@@ -167,9 +172,9 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
         nodesConnectable={view === 'erd'}
         elementsSelectable
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.08 }}
         minZoom={0.25}
-        maxZoom={1.5}
+        maxZoom={2}
         proOptions={{ hideAttribution: true }}
       ><Background gap={16} size={1} color="var(--border-strong)" /><Controls showInteractive={false} /></ReactFlow>}
     </div>
