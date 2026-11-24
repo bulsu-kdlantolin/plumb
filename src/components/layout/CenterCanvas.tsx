@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ReactFlow, Background, Controls, MarkerType, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import dagre from 'dagre'
 import { ArrowDownToLine, Database, LayoutGrid, Network, Palette, Rows3 } from 'lucide-react'
@@ -25,8 +25,8 @@ interface CenterCanvasProps {
   onUpdateProject: (project: ProjectSpec) => void
 }
 
-function getErdNodes(project: ProjectSpec): CanvasNode[] {
-  return project.data.entities.map((entity) => ({
+function getErdNodes(entities: ProjectSpec['data']['entities']): CanvasNode[] {
+  return entities.map((entity) => ({
     id: entity.id,
     type: 'entity',
     position: entity.position,
@@ -34,10 +34,10 @@ function getErdNodes(project: ProjectSpec): CanvasNode[] {
   }))
 }
 
-function getErdEdges(project: ProjectSpec): CanvasEdge[] {
-  return project.data.entities.flatMap((source) => source.fields.flatMap((field) => {
+function getErdEdges(entities: ProjectSpec['data']['entities']): CanvasEdge[] {
+  return entities.flatMap((source) => source.fields.flatMap((field) => {
     if (!field.references) return []
-    const target = project.data.entities.find((entity) => entity.name === field.references?.entity)
+    const target = entities.find((entity) => entity.name === field.references?.entity)
     if (!target) return []
     const targetField = target.fields.find((candidate) => candidate.name === field.references?.field)
     if (!targetField) return []
@@ -59,18 +59,18 @@ function getErdEdges(project: ProjectSpec): CanvasEdge[] {
   }))
 }
 
-function getTopology(project: ProjectSpec): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
+function getTopology(stack: ProjectSpec['stack'], webhooks: ProjectSpec['apis']['webhooks']): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const nodes: CanvasNode[] = []
   const links: [string, string][] = []
   const push = (id: string, label: string, detail: string, kind: ServiceNodeData['kind']) => {
     nodes.push({ id, type: 'service', position: { x: 0, y: 0 }, data: { label, detail, kind } })
   }
-  push('client', 'Client App', project.stack.frontend || 'Frontend client', 'client')
-  push('api', 'API Layer', project.stack.backend || 'API service', 'api')
-  push('database', 'Database', project.stack.database || 'Data store', 'database')
-  push('auth', 'Auth Provider', project.stack.authStrategy || 'Authentication', 'auth')
+  push('client', 'Client App', stack.frontend || 'Frontend client', 'client')
+  push('api', 'API Layer', stack.backend || 'API service', 'api')
+  push('database', 'Database', stack.database || 'Data store', 'database')
+  push('auth', 'Auth Provider', stack.authStrategy || 'Authentication', 'auth')
   links.push(['client', 'api'], ['api', 'database'], ['client', 'auth'], ['api', 'auth'])
-  project.apis.webhooks.forEach((hook, index) => {
+  webhooks.forEach((hook, index) => {
     const id = `webhook-${index}`
     push(id, hook.provider || `Webhook ${index + 1}`, `${hook.event || 'External event'} → ${hook.path || '/webhook'}`, 'webhook')
     links.push([id, 'api'])
@@ -96,9 +96,10 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
   const [view, setView] = useState<View>('erd')
   const [localNodes, setLocalNodes] = useState<CanvasNode[] | null>(null)
   const [localEdges, setLocalEdges] = useState<CanvasEdge[] | null>(null)
-  const baseErdNodes = useMemo(() => getErdNodes(project), [project.data.entities])
-  const baseErdEdges = useMemo(() => getErdEdges(project), [project.data.entities])
-  const topology = useMemo(() => getTopology(project), [project.stack, project.apis.webhooks, project.designTokens])
+  const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({})
+  const baseErdNodes = useMemo(() => getErdNodes(project.data.entities), [project.data.entities])
+  const baseErdEdges = useMemo(() => getErdEdges(project.data.entities), [project.data.entities])
+  const topology = useMemo(() => getTopology(project.stack, project.apis.webhooks), [project.stack, project.apis.webhooks])
   const nodes = view === 'erd' ? baseErdNodes : topology.nodes
   const edges = view === 'erd' ? baseErdEdges : topology.edges
   const flowNodes = (localNodes ?? nodes).map((node) => ({ ...node, data: nodes.find((latest) => latest.id === node.id)?.data ?? node.data })) as CanvasNode[]
@@ -143,13 +144,27 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
   }
 
   const changeView = (next: View) => { setView(next); setLocalNodes(null); setLocalEdges(null) }
+  const handleViewTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: View) => {
+    const currentIndex = tabs.findIndex((tab) => tab.id === current)
+    let nextIndex: number | undefined
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % tabs.length
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = tabs.length - 1
+    if (nextIndex === undefined) return
+    event.preventDefault()
+    const nextView = tabs[nextIndex].id
+    changeView(nextView)
+    tabRefs.current[nextView]?.focus()
+  }
+  const activeTabId = `canvas-tab-${view}`
   const currentLabel = ['SCOPE', 'STACK', 'DATA', 'UI'][activeStep] ?? 'DATA'
 
   return <main className="center-canvas">
     <div className="canvas-toolbar canvas-toolbar-views">
       <div className="canvas-context"><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
       <div className="canvas-view-switcher" role="tablist" aria-label="Canvas view">
-        {tabs.map(({ id, label, icon: Icon }) => <button key={id} role="tab" aria-selected={view === id} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => changeView(id)}><Icon size={13} />{label}</button>)}
+        {tabs.map(({ id, label, icon: Icon }) => <button key={id} ref={(element) => { tabRefs.current[id] = element }} id={`canvas-tab-${id}`} type="button" role="tab" aria-selected={view === id} aria-controls="canvas-panel" tabIndex={view === id ? 0 : -1} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleViewTabKeyDown(event, id)} onClick={() => changeView(id)}><Icon size={13} />{label}</button>)}
       </div>
     </div>
     <div className="canvas-flow-tools">
@@ -157,7 +172,7 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
       {view !== 'preview' && <button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><LayoutGrid size={13} /> AUTO-LAYOUT</button>}
       {view === 'preview' && <span className="canvas-coordinate"><ArrowDownToLine size={12} /> EXPORT PREVIEW</span>}
     </div>
-    <div className={`canvas-scroll canvas-flow-area ${view === 'preview' ? 'preview-area' : ''}`}>
+    <div id="canvas-panel" role="tabpanel" aria-labelledby={activeTabId} tabIndex={0} className={`canvas-scroll canvas-flow-area ${view === 'preview' ? 'preview-area' : ''}`}>
       {view === 'preview' ? <DesignPreviewCard project={project} /> : view === 'erd' && project.data.entities.length === 0 ? <div className="canvas-empty-state"><Database size={22} /><h2>No entities in the schema</h2><p>Add your first entity to map fields and relationships.</p><button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onSelectStep(2)}>Open data editor</button></div> : <ReactFlow<CanvasNode, CanvasEdge>
         key={view}
         nodes={flowNodes}

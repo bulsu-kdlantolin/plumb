@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AlertTriangle, Check, CheckCircle2, Clipboard, FileCode2, ShieldCheck } from 'lucide-react'
-import { runSlopLinter } from '../../core/linter/runSlopLinter'
+import type { LinterResult } from '../../core/linter/runSlopLinter'
 import type { CompiledFileName, CompiledFiles } from '../../core/compiler/compileProject'
 import type { ProjectSpec } from '../../types/spec.types'
 
 interface RightCompilerProps {
   project: ProjectSpec
   files: CompiledFiles
+  diagnostics: LinterResult
   activeFile: CompiledFileName
   theme: 'dark' | 'light'
   onSelectFile: (file: CompiledFileName) => void
@@ -22,14 +23,32 @@ const fileTabs: { file: CompiledFileName; label: string; lang: 'markdown' | 'sql
   { file: 'PROMPT_PLAYBOOK.md', label: 'PLAYBOOK.md', lang: 'markdown' },
 ]
 
-export function RightCompiler({ project, files, activeFile, theme, onSelectFile, onFix }: RightCompilerProps) {
+export function RightCompiler({ project, files, diagnostics, activeFile, theme, onSelectFile, onFix }: RightCompilerProps) {
   const [highlighted, setHighlighted] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [copyError, setCopyError] = useState('')
   const [linterOpen, setLinterOpen] = useState(true)
-  const diagnostics = runSlopLinter(project)
+  const tabRefs = useRef<Partial<Record<CompiledFileName, HTMLButtonElement | null>>>({})
+  const copyFeedbackTimer = useRef<number | null>(null)
   const content = files[activeFile]
   const lang = fileTabs.find((tab) => tab.file === activeFile)?.lang ?? 'markdown'
   const highlightTheme = theme === 'light' ? 'github-light' : 'github-dark'
+  const activeTabId = `compiled-tab-${activeFile.replaceAll('.', '-')}`
+
+  const handleFileTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: CompiledFileName) => {
+    const currentIndex = fileTabs.findIndex((tab) => tab.file === current)
+    let nextIndex: number | undefined
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % fileTabs.length
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + fileTabs.length) % fileTabs.length
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = fileTabs.length - 1
+    if (nextIndex === undefined) return
+    event.preventDefault()
+    const nextFile = fileTabs[nextIndex].file
+    onSelectFile(nextFile)
+    tabRefs.current[nextFile]?.focus()
+  }
 
   useEffect(() => {
     let current = true
@@ -54,20 +73,34 @@ export function RightCompiler({ project, files, activeFile, theme, onSelectFile,
   }, [content, lang, highlightTheme])
 
   const copy = async () => {
+    if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current)
+    copyFeedbackTimer.current = null
+    setCopying(true)
+    setCopyError('')
     try {
       await navigator.clipboard.writeText(content)
       setCopied(true)
-      window.setTimeout(() => setCopied(false), 1400)
-    } catch { setCopied(false) }
+      copyFeedbackTimer.current = window.setTimeout(() => { setCopied(false); copyFeedbackTimer.current = null }, 1400)
+    } catch {
+      setCopied(false)
+      setCopyError('Clipboard access failed. Select the output text and copy it manually, or try again.')
+    } finally {
+      setCopying(false)
+    }
   }
+
+  useEffect(() => () => {
+    if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current)
+  }, [])
 
   return <aside className="right-compiler">
     <div className="pane-heading"><span className="pane-title">Compiler output</span><span className="right-alignment-pill">ALIGNMENT: <strong>{diagnostics.alignmentScore}/100</strong></span></div>
     <div className="compiler-file-tabs" role="tablist" aria-label="Compiled files">
-      {fileTabs.map(({ file, label }) => <button key={file} role="tab" aria-selected={activeFile === file} className="compiler-file-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onSelectFile(file)}>{label}</button>)}
+      {fileTabs.map(({ file, label }) => <button key={file} ref={(element) => { tabRefs.current[file] = element }} id={`compiled-tab-${file.replaceAll('.', '-')}`} type="button" role="tab" aria-selected={activeFile === file} aria-controls="compiler-panel" tabIndex={activeFile === file ? 0 : -1} className="compiler-file-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleFileTabKeyDown(event, file)} onClick={() => onSelectFile(file)}>{label}</button>)}
     </div>
-    <div className="compiler-status"><strong><CheckCircle2 size={14} color={diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'var(--accent-crimson)' : 'var(--accent-emerald)'} />{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Review required' : 'Spec compiled'}</strong><button className="copy-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => void copy()} aria-label={`Copy ${activeFile}`}><>{copied ? <Check size={13} /> : <Clipboard size={13} />}{copied ? 'Copied' : 'Copy'}</></button></div>
-    <div className="compiler-body compiler-code-body" role="tabpanel" aria-label={activeFile}>
+    <div className="compiler-status"><strong><CheckCircle2 size={14} color={diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'var(--accent-crimson)' : 'var(--accent-emerald)'} />{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Review required' : 'Spec compiled'}</strong><button type="button" className="copy-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => void copy()} aria-label={`${copying ? 'Copying' : 'Copy'} ${activeFile}`} disabled={copying}><>{copied ? <Check size={13} /> : <Clipboard size={13} />}{copying ? 'Copying' : copied ? 'Copied' : 'Copy'}</></button></div>
+    {copyError && <p className="copy-error" role="alert">{copyError}</p>}
+    <div id="compiler-panel" className="compiler-body compiler-code-body" role="tabpanel" aria-labelledby={activeTabId} tabIndex={0}>
       {highlighted ? <div className="shiki-output" dangerouslySetInnerHTML={{ __html: highlighted }} /> : <pre className="compiler-code">{content}</pre>}
     </div>
     <section className={`linter-drawer${linterOpen ? ' open' : ''}`}>

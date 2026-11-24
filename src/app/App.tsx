@@ -24,13 +24,15 @@ export default function App() {
   const [exportError, setExportError] = useState('')
   const shortcutDialogRef = useRef<HTMLElement>(null)
   const files = useMemo(() => compileProject(project), [project])
-  const alignmentScore = useMemo(() => runSlopLinter(project).alignmentScore, [project])
+  const diagnostics = useMemo(() => runSlopLinter(project), [project])
+  const alignmentScore = diagnostics.alignmentScore
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    if (themeColor) themeColor.content = theme === 'dark' ? '#0C0D0E' : '#ECEAE4'
+    const canvasColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-canvas').trim()
+    if (themeColor && canvasColor) themeColor.content = canvasColor
   }, [theme])
 
   const counts = { routes: project.scope.routes.length, entities: project.data.entities.length, endpoints: project.apis.endpoints.length, envVars: project.stack.envVars.length }
@@ -84,7 +86,7 @@ export default function App() {
     <div className="shell" inert={!hydrated} aria-busy={!hydrated}>
       <LeftRail activeStep={activeStep} onSelectStep={setActiveStep} counts={counts} project={project} saveStatus={saveStatus} onChangeProject={(next) => updateProject(() => next)} />
       <CenterCanvas project={project} activeStep={activeStep} onSelectStep={setActiveStep} onUpdateProject={(next) => updateProject(() => next)} />
-      <RightCompiler project={project} files={files} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={setActiveStep} />
+      <RightCompiler project={project} files={files} diagnostics={diagnostics} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={setActiveStep} />
     </div>
     {exportError && <div className="export-error" role="alert">{exportError}<button onClick={() => setExportError('')} aria-label="Dismiss export error" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]">×</button></div>}
     {shortcutHelpOpen && <div className="shortcut-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShortcutHelpOpen(false) }}><section ref={shortcutDialogRef} className="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" onKeyDown={(event) => { if (event.key === 'Tab') event.preventDefault() }}><header><h2 id="shortcut-title">Keyboard shortcuts</h2><button className="editor-icon focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => setShortcutHelpOpen(false)} aria-label="Close keyboard shortcuts">×</button></header><div><span>Export context bundle</span><kbd>⌘ / Ctrl + E</kbd></div><div><span>Show this panel</span><kbd>⌘ / Ctrl + K</kbd></div><div><span>Close this panel</span><kbd>Esc</kbd></div></section></div>}
