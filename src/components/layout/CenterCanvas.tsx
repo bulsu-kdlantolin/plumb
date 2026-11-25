@@ -190,7 +190,6 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
         fitViewOptions={{ padding: 0.08 }}
         minZoom={0.25}
         maxZoom={2}
-        proOptions={{ hideAttribution: true }}
       ><Background gap={16} size={1} color="var(--border-strong)" /><Controls showInteractive={false} /></ReactFlow>}
     </div>
   </main>
