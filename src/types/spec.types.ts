@@ -100,6 +100,13 @@ export interface BuildStepSpec {
   dependsOn: string[]
 }
 
+export interface ProjectResourceSpec {
+  id: string
+  label: string
+  url: string
+  notes: string
+}
+
 export interface ProjectSpec {
   id: string
   name: string
@@ -144,6 +151,7 @@ export interface ProjectSpec {
   uiStateMachines: UiStateMachineSpec[]
   securityRules: SecurityRuleSpec[]
   buildPlaybook: BuildStepSpec[]
+  resources: ProjectResourceSpec[]
 }
 
 export interface LinterDiagnostic {

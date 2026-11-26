@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import JSZip from 'jszip'
+import { toast, Toaster } from 'sonner'
+import { MotionConfig } from 'motion/react'
 import { CenterCanvas } from '../components/layout/CenterCanvas'
 import { LeftRail } from '../components/layout/LeftRail'
+import { ProjectStart } from '../components/layout/ProjectStart'
 import { RightCompiler } from '../components/layout/RightCompiler'
 import { TopBar } from '../components/layout/TopBar'
 import { useSpecStore } from '../store/useSpecStore'
+import { Loading } from 'loading-dev'
 import { compileProject, projectSlug } from '../core/compiler/compileProject'
 import { runSlopLinter } from '../core/linter/runSlopLinter'
+import { CommandPalette, type PaletteView } from '../components/ui/CommandPalette'
 
 export default function App() {
   const project = useSpecStore((state) => state.project)
+  const projects = useSpecStore((state) => state.projects)
   const hydrated = useSpecStore((state) => state.hydrated)
   const saveStatus = useSpecStore((state) => state.saveStatus)
   const activeStep = useSpecStore((state) => state.activeStep)
@@ -18,14 +24,18 @@ export default function App() {
   const setActiveStep = useSpecStore((state) => state.setActiveStep)
   const setCompilerTab = useSpecStore((state) => state.setCompilerTab)
   const updateProject = useSpecStore((state) => state.updateProject)
+  const createProject = useSpecStore((state) => state.createProject)
+  const selectProject = useSpecStore((state) => state.selectProject)
+  const renameProject = useSpecStore((state) => state.renameProject)
+  const duplicateProject = useSpecStore((state) => state.duplicateProject)
+  const deleteProject = useSpecStore((state) => state.deleteProject)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [exporting, setExporting] = useState(false)
-  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
-  const [exportError, setExportError] = useState('')
-  const shortcutDialogRef = useRef<HTMLElement>(null)
-  const files = useMemo(() => compileProject(project), [project])
-  const diagnostics = useMemo(() => runSlopLinter(project), [project])
-  const alignmentScore = diagnostics.alignmentScore
+  const [compilerOpen, setCompilerOpen] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [canvasRequest, setCanvasRequest] = useState<PaletteView | null>(null)
+  const files = useMemo(() => project ? compileProject(project) : null, [project])
+  const diagnostics = useMemo(() => project ? runSlopLinter(project) : null, [project])
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => {
@@ -35,62 +45,50 @@ export default function App() {
     if (themeColor && canvasColor) themeColor.content = canvasColor
   }, [theme])
 
-  const counts = { routes: project.scope.routes.length, entities: project.data.entities.length, endpoints: project.apis.endpoints.length, envVars: project.stack.envVars.length }
-
   const exportBundle = useCallback(async () => {
+    if (!project || !files) return
     setExporting(true)
-    setExportError('')
     try {
       const zip = new JSZip()
       Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).forEach(([name, content]) => zip.file(name, content, { date: new Date('2000-01-01T00:00:00.000Z') }))
       const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 9 } })
       const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `${projectSlug(project)}-context-bundle.zip`
-      anchor.click()
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${projectSlug(project)}-context-bundle.zip`; anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch {
-      setExportError('Bundle export failed. Check browser download permissions and try again.')
-    } finally { setExporting(false) }
+      toast.success('Context bundle exported', { description: `${projectSlug(project)}-context-bundle.zip` })
+    } catch { toast.error('Bundle export failed', { description: 'Check browser download permissions and try again.' }) }
+    finally { setExporting(false) }
   }, [files, project])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && shortcutHelpOpen) { setShortcutHelpOpen(false); return }
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
       const target = event.target
       const editing = target instanceof HTMLElement && (target.isContentEditable || Boolean(target.closest('input, textarea, select, [contenteditable="true"]')))
       if (editing && event.key.toLowerCase() !== 'k') return
-      if (event.key.toLowerCase() === 'e') {
-        event.preventDefault()
-        void exportBundle()
-      } else if (event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setShortcutHelpOpen((open) => !open)
-      }
+      if (event.key.toLowerCase() === 'e') { event.preventDefault(); void exportBundle() }
+      else if (event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen((open) => !open) }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [exportBundle, shortcutHelpOpen])
+    window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown)
+  }, [exportBundle])
 
-  useEffect(() => {
-    if (!shortcutHelpOpen) return
-    const previousFocus = document.activeElement
-    shortcutDialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
-    return () => { if (previousFocus instanceof HTMLElement) previousFocus.focus() }
-  }, [shortcutHelpOpen])
+  const copyHandoff = async () => {
+    if (!files) return
+    try {
+      await navigator.clipboard.writeText(files['AI_HANDOFF.md'])
+      toast.success('Master prompt copied', { description: 'Paste it into your coding agent to start the build.' })
+    } catch { toast.error('Could not copy the master prompt', { description: 'Open HANDOFF and copy the AI_HANDOFF.md text manually.' }) }
+  }
 
-  return <div className="workbench">
-    <TopBar projectName={project.name} alignmentScore={alignmentScore} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setShortcutHelpOpen(true)} exporting={exporting} exportAvailable={hydrated} saveStatus={saveStatus} />
-    <div className="shell" inert={!hydrated} aria-busy={!hydrated}>
-      <LeftRail activeStep={activeStep} onSelectStep={setActiveStep} counts={counts} project={project} saveStatus={saveStatus} onChangeProject={(next) => updateProject(() => next)} />
-      <CenterCanvas project={project} activeStep={activeStep} onSelectStep={setActiveStep} onUpdateProject={(next) => updateProject(() => next)} />
-      <RightCompiler project={project} files={files} diagnostics={diagnostics} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={setActiveStep} />
-    </div>
-    {exportError && <div className="export-error" role="alert">{exportError}<button onClick={() => setExportError('')} aria-label="Dismiss export error" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]">×</button></div>}
-    {shortcutHelpOpen && <div className="shortcut-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setShortcutHelpOpen(false) }}><section ref={shortcutDialogRef} className="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" onKeyDown={(event) => { if (event.key === 'Tab') event.preventDefault() }}><header><h2 id="shortcut-title">Keyboard shortcuts</h2><button className="editor-icon focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => setShortcutHelpOpen(false)} aria-label="Close keyboard shortcuts">×</button></header><div><span>Export context bundle</span><kbd>⌘ / Ctrl + E</kbd></div><div><span>Show this panel</span><kbd>⌘ / Ctrl + K</kbd></div><div><span>Close this panel</span><kbd>Esc</kbd></div></section></div>}
+  return <MotionConfig reducedMotion="user"><div className="workbench">
+    <TopBar projectName={project?.name ?? 'Start a plan'} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setCommandOpen(true)} exporting={exporting} exportAvailable={hydrated && Boolean(project)} saveStatus={saveStatus} onProjects={() => void selectProject(null)} onToggleCompiler={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} compilerOpen={compilerOpen} onCopyHandoff={() => void copyHandoff()} />
+    {!hydrated ? <div className="loading-state" role="status" aria-live="polite"><Loading size={24} color="var(--accent-primary)" /><span>Opening local plans</span></div> : !project ? <ProjectStart projects={projects} onCreate={(name, idea, example) => void createProject(name, idea, example)} onOpen={(id) => void selectProject(id)} onRename={(id, name) => void renameProject(id, name)} onDuplicate={(id) => void duplicateProject(id)} onDelete={(id) => void deleteProject(id)} /> : <div className={`shell${compilerOpen ? ' compiler-visible' : ' compiler-hidden'}`}>
+      <LeftRail activeStep={activeStep} onSelectStep={setActiveStep} project={project} saveStatus={saveStatus} />
+      <CenterCanvas project={project} activeStep={activeStep} onSelectStep={setActiveStep} onUpdateProject={(next) => updateProject(() => next)} requestedView={canvasRequest} onViewRequestHandled={() => setCanvasRequest(null)} />
+      {compilerOpen && files && diagnostics && <RightCompiler project={project} files={files} diagnostics={diagnostics} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={(step) => setActiveStep(step)} />}
+    </div>}
+    <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} onStep={(step) => { setActiveStep(step); setCanvasRequest(null) }} onCanvas={(view) => { setCanvasRequest(view); setActiveStep(2) }} onOutput={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} onTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onProjects={() => void selectProject(null)} onCopy={() => void copyHandoff()} onExport={() => void exportBundle()} projectAvailable={Boolean(project)} />
+    <Toaster theme={theme} position="bottom-right" toastOptions={{ classNames: { toast: 'plumb-toast', title: 'plumb-toast-title', description: 'plumb-toast-description' } }} />
     <span className="sr-only" aria-live="polite">{exporting ? 'Exporting context bundle' : ''}</span>
-    {!hydrated && <span aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)' }}>Loading local project</span>}
-  </div>
+  </div></MotionConfig>
 }

@@ -1,20 +1,27 @@
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { TextInput, TextArea } from '../ui/TextInput'
+import { Button } from '../ui/Button'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ReactFlow, Background, Controls, MarkerType, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import dagre from 'dagre'
-import { ArrowDownToLine, Database, LayoutGrid, Network, Palette, Rows3 } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ArrowLineDown, Database, GridFour, Graph, Palette, Rows } from '@phosphor-icons/react'
 import { DesignPreviewCard } from '../canvas/DesignPreviewCard'
 import { EntityNode, type EntityNodeData, type EntityNodeType } from '../canvas/EntityNode'
 import { ServiceNode, type ServiceNodeData, type ServiceNodeType } from '../canvas/ServiceNode'
 import type { EntityFieldSpec, ProjectSpec } from '../../types/spec.types'
+import { Step1ScopeForm } from '../pipeline/Step1ScopeForm'
+import { Step2StackForm } from '../pipeline/Step2StackForm'
+import { Step3DataApiForm } from '../pipeline/Step3DataApiForm'
+import { Step4DesignForm } from '../pipeline/Step4DesignForm'
 
 type View = 'erd' | 'topology' | 'preview'
 type CanvasNode = EntityNodeType | ServiceNodeType
 type CanvasEdge = Edge
 
 const nodeTypes = { entity: EntityNode, service: ServiceNode }
-const tabs: { id: View; label: string; icon: typeof Rows3 }[] = [
-  { id: 'erd', label: 'ERD SCHEMA', icon: Rows3 },
-  { id: 'topology', label: 'SYSTEM TOPOLOGY', icon: Network },
+const tabs: { id: View; label: string; icon: typeof Rows }[] = [
+  { id: 'erd', label: 'ERD SCHEMA', icon: Rows },
+  { id: 'topology', label: 'SYSTEM TOPOLOGY', icon: Graph },
   { id: 'preview', label: 'UI TOKEN PREVIEW', icon: Palette },
 ]
 
@@ -23,6 +30,8 @@ interface CenterCanvasProps {
   activeStep: number
   onSelectStep: (step: number) => void
   onUpdateProject: (project: ProjectSpec) => void
+  requestedView?: View | null
+  onViewRequestHandled?: () => void
 }
 
 function getErdNodes(entities: ProjectSpec['data']['entities']): CanvasNode[] {
@@ -92,8 +101,19 @@ function layoutNodes(nodes: CanvasNode[], edges: CanvasEdge[], direction: 'LR' |
   })
 }
 
-export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProject }: CenterCanvasProps) {
+export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProject, requestedView, onViewRequestHandled }: CenterCanvasProps) {
+  const [mode, setMode] = useState<'plan' | 'canvas'>('plan')
+  const reduceMotion = useReducedMotion()
+  useEffect(() => { setMode('plan') }, [activeStep])
   const [view, setView] = useState<View>('erd')
+  useEffect(() => {
+    if (!requestedView) return
+    setMode('canvas')
+    setView(requestedView)
+    setLocalNodes(null)
+    setLocalEdges(null)
+    onViewRequestHandled?.()
+  }, [requestedView, onViewRequestHandled])
   const [localNodes, setLocalNodes] = useState<CanvasNode[] | null>(null)
   const [localEdges, setLocalEdges] = useState<CanvasEdge[] | null>(null)
   const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({})
@@ -160,20 +180,25 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
   const activeTabId = `canvas-tab-${view}`
   const currentLabel = ['SCOPE', 'STACK', 'DATA', 'UI'][activeStep] ?? 'DATA'
 
+  if (mode === 'plan') return <main className="center-canvas plan-canvas">
+    <div className="plan-toolbar"><div><span className="micro-label">PHASE 0{activeStep + 1} / 04</span><strong>{['Product definition', 'Technology choices', 'System architecture', 'Experience & delivery'][activeStep]}</strong></div><Button type="button" className="flow-action" onClick={() => setMode('canvas')}>OPEN CANVAS →</Button></div>
+    <div className="plan-editor-scroll"><AnimatePresence mode="wait" initial={false}><motion.div key={activeStep} initial={{ opacity: 0, x: reduceMotion ? 0 : 5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduceMotion ? 0 : -3 }} transition={{ duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}>{activeStep === 0 && <Step1ScopeForm project={project} onChange={onUpdateProject} />}{activeStep === 1 && <Step2StackForm project={project} onChange={onUpdateProject} />}{activeStep === 2 && <Step3DataApiForm project={project} onChange={onUpdateProject} />}{activeStep === 3 && <><Step4DesignForm project={project} onChange={onUpdateProject} /><ResourceLinks project={project} onChange={onUpdateProject} /></>}</motion.div></AnimatePresence></div>
+  </main>
+
   return <main className="center-canvas">
     <div className="canvas-toolbar canvas-toolbar-views">
-      <div className="canvas-context"><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
+      <div className="canvas-context"><Button type="button" className="canvas-view-tab" onClick={() => setMode('plan')}>← PLAN</Button><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
       <div className="canvas-view-switcher" role="tablist" aria-label="Canvas view">
-        {tabs.map(({ id, label, icon: Icon }) => <button key={id} ref={(element) => { tabRefs.current[id] = element }} id={`canvas-tab-${id}`} type="button" role="tab" aria-selected={view === id} aria-controls="canvas-panel" tabIndex={view === id ? 0 : -1} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleViewTabKeyDown(event, id)} onClick={() => changeView(id)}><Icon size={13} />{label}</button>)}
+        {tabs.map(({ id, label, icon: Icon }) => <Button key={id} ref={(element) => { tabRefs.current[id] = element }} id={`canvas-tab-${id}`} type="button" role="tab" aria-selected={view === id} aria-controls="canvas-panel" tabIndex={view === id ? 0 : -1} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleViewTabKeyDown(event, id)} onClick={() => changeView(id)}><Icon size={13} />{label}</Button>)}
       </div>
     </div>
     <div className="canvas-flow-tools">
       <span className="canvas-coordinate">{view === 'erd' ? `${project.data.entities.length} TABLES / ${baseErdEdges.length} RELATIONS` : view === 'topology' ? `${topology.nodes.length} SERVICES / ${topology.edges.length} LINKS` : 'DESIGN TOKENS / LIVE'}</span>
-      {view !== 'preview' && <button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><LayoutGrid size={13} /> AUTO-LAYOUT</button>}
-      {view === 'preview' && <span className="canvas-coordinate"><ArrowDownToLine size={12} /> EXPORT PREVIEW</span>}
+      {view !== 'preview' && <Button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><GridFour size={13} /> AUTO-LAYOUT</Button>}
+      {view === 'preview' && <span className="canvas-coordinate"><ArrowLineDown size={12} /> EXPORT PREVIEW</span>}
     </div>
     <div id="canvas-panel" role="tabpanel" aria-labelledby={activeTabId} tabIndex={0} className={`canvas-scroll canvas-flow-area ${view === 'preview' ? 'preview-area' : ''}`}>
-      {view === 'preview' ? <DesignPreviewCard project={project} /> : view === 'erd' && project.data.entities.length === 0 ? <div className="canvas-empty-state"><Database size={22} /><h2>No entities in the schema</h2><p>Add your first entity to map fields and relationships.</p><button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onSelectStep(2)}>Open data editor</button></div> : <ReactFlow<CanvasNode, CanvasEdge>
+      {view === 'preview' ? <DesignPreviewCard project={project} /> : view === 'erd' && project.data.entities.length === 0 ? <div className="canvas-empty-state"><Database size={22} /><h2>No entities in the schema</h2><p>Add your first entity to map fields and relationships.</p><Button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onSelectStep(2)}>Open data editor</Button></div> : <ReactFlow<CanvasNode, CanvasEdge>
         key={view}
         nodes={flowNodes}
         edges={flowEdges}
@@ -193,4 +218,9 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
       ><Background gap={16} size={1} color="var(--border-strong)" /><Controls showInteractive={false} /></ReactFlow>}
     </div>
   </main>
+}
+
+function ResourceLinks({ project, onChange }: { project: ProjectSpec; onChange: (project: ProjectSpec) => void }) {
+  const resources = project.resources ?? []
+  return <section className="step-editor editor-section"><div className="editor-title">Project resources<span>LINKS & NOTES</span></div><p className="editor-empty">Keep useful documentation, repositories, and references beside the plan. Links and notes are included in the handoff bundle.</p>{resources.map((item) => <div className="editor-block" key={item.id}><label className="editor-field"><span>LABEL</span><TextInput value={item.label} onChange={(event) => onChange({ ...project, resources: resources.map((resource) => resource.id === item.id ? { ...resource, label: event.target.value } : resource) })} /></label><label className="editor-field"><span>URL</span><TextInput type="url" value={item.url} onChange={(event) => onChange({ ...project, resources: resources.map((resource) => resource.id === item.id ? { ...resource, url: event.target.value } : resource) })} /></label><label className="editor-field"><span>NOTES</span><TextArea value={item.notes} rows={2} onChange={(event) => onChange({ ...project, resources: resources.map((resource) => resource.id === item.id ? { ...resource, notes: event.target.value } : resource) })} /></label><Button className="editor-add" onClick={() => onChange({ ...project, resources: resources.filter((resource) => resource.id !== item.id) })}>Remove link</Button></div>)}<Button className="editor-add" onClick={() => onChange({ ...project, resources: [...resources, { id: crypto.randomUUID(), label: '', url: '', notes: '' }] })}>+ Add resource</Button></section>
 }

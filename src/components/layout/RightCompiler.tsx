@@ -1,5 +1,7 @@
+import { Button } from '../ui/Button'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { AlertTriangle, Check, CheckCircle2, Clipboard, FileCode2, ShieldCheck } from 'lucide-react'
+import { toast } from 'sonner'
+import { Warning, Check, CheckCircle, Clipboard, FileCode, ShieldCheck } from '@phosphor-icons/react'
 import type { LinterResult } from '../../core/linter/runSlopLinter'
 import type { CompiledFileName, CompiledFiles } from '../../core/compiler/compileProject'
 import type { ProjectSpec } from '../../types/spec.types'
@@ -21,13 +23,14 @@ const fileTabs: { file: CompiledFileName; label: string; lang: 'markdown' | 'sql
   { file: 'SCHEMA.sql', label: 'SCHEMA.sql', lang: 'sql' },
   { file: 'API_SPEC.md', label: 'API_SPEC.md', lang: 'markdown' },
   { file: 'PROMPT_PLAYBOOK.md', label: 'PLAYBOOK.md', lang: 'markdown' },
+  { file: 'AI_HANDOFF.md', label: 'AI HANDOFF', lang: 'markdown' },
+  { file: 'RESOURCE_LINKS.md', label: 'RESOURCES', lang: 'markdown' },
 ]
 
 export function RightCompiler({ project, files, diagnostics, activeFile, theme, onSelectFile, onFix }: RightCompilerProps) {
   const [highlighted, setHighlighted] = useState('')
   const [copied, setCopied] = useState(false)
   const [copying, setCopying] = useState(false)
-  const [copyError, setCopyError] = useState('')
   const [linterOpen, setLinterOpen] = useState(true)
   const tabRefs = useRef<Partial<Record<CompiledFileName, HTMLButtonElement | null>>>({})
   const copyFeedbackTimer = useRef<number | null>(null)
@@ -76,14 +79,14 @@ export function RightCompiler({ project, files, diagnostics, activeFile, theme, 
     if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current)
     copyFeedbackTimer.current = null
     setCopying(true)
-    setCopyError('')
     try {
       await navigator.clipboard.writeText(content)
       setCopied(true)
+      toast.success(`${activeFile} copied`)
       copyFeedbackTimer.current = window.setTimeout(() => { setCopied(false); copyFeedbackTimer.current = null }, 1400)
     } catch {
       setCopied(false)
-      setCopyError('Clipboard access failed. Select the output text and copy it manually, or try again.')
+      toast.error('Could not copy output', { description: 'Select the output text and copy it manually, or try again.' })
     } finally {
       setCopying(false)
     }
@@ -94,20 +97,19 @@ export function RightCompiler({ project, files, diagnostics, activeFile, theme, 
   }, [])
 
   return <aside className="right-compiler">
-    <div className="pane-heading"><span className="pane-title">Compiler output</span><span className="right-alignment-pill">ALIGNMENT: <strong>{diagnostics.alignmentScore}/100</strong></span></div>
+    <div className="pane-heading"><span className="pane-title">Agent handoff</span><span className="right-alignment-pill">DRAFT BUNDLE</span></div>
     <div className="compiler-file-tabs" role="tablist" aria-label="Compiled files">
-      {fileTabs.map(({ file, label }) => <button key={file} ref={(element) => { tabRefs.current[file] = element }} id={`compiled-tab-${file.replaceAll('.', '-')}`} type="button" role="tab" aria-selected={activeFile === file} aria-controls="compiler-panel" tabIndex={activeFile === file ? 0 : -1} className="compiler-file-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleFileTabKeyDown(event, file)} onClick={() => onSelectFile(file)}>{label}</button>)}
+      {fileTabs.map(({ file, label }) => <Button key={file} ref={(element) => { tabRefs.current[file] = element }} id={`compiled-tab-${file.replaceAll('.', '-')}`} type="button" role="tab" aria-selected={activeFile === file} aria-controls="compiler-panel" tabIndex={activeFile === file ? 0 : -1} className="compiler-file-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleFileTabKeyDown(event, file)} onClick={() => onSelectFile(file)}>{label}</Button>)}
     </div>
-    <div className="compiler-status"><strong><CheckCircle2 size={14} color={diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'var(--accent-crimson)' : 'var(--accent-emerald)'} />{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Review required' : 'Spec compiled'}</strong><button type="button" className="copy-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => void copy()} aria-label={`${copying ? 'Copying' : 'Copy'} ${activeFile}`} disabled={copying}><>{copied ? <Check size={13} /> : <Clipboard size={13} />}{copying ? 'Copying' : copied ? 'Copied' : 'Copy'}</></button></div>
-    {copyError && <p className="copy-error" role="alert">{copyError}</p>}
+    <div className="compiler-status"><strong><CheckCircle size={14} weight="regular" color={diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'var(--accent-crimson)' : 'var(--accent-emerald)'} />{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Review required' : 'Spec compiled'}</strong><Button type="button" className="copy-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => void copy()} aria-label={`${copying ? 'Copying' : 'Copy'} ${activeFile}`} disabled={copying}><>{copied ? <Check size={13} /> : <Clipboard size={13} />}{copying ? 'Copying' : copied ? 'Copied' : 'Copy'}</></Button></div>
     <div id="compiler-panel" className="compiler-body compiler-code-body" role="tabpanel" aria-labelledby={activeTabId} tabIndex={0}>
       {highlighted ? <div className="shiki-output" dangerouslySetInnerHTML={{ __html: highlighted }} /> : <pre className="compiler-code">{content}</pre>}
     </div>
     <section className={`linter-drawer${linterOpen ? ' open' : ''}`}>
-      <button className="linter-drawer-toggle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" aria-expanded={linterOpen} onClick={() => setLinterOpen((open) => !open)}><span><ShieldCheck size={13} /> Slop linter · {diagnostics.diagnostics.length} findings</span><strong>Alignment {diagnostics.alignmentScore}</strong></button>
-      {linterOpen && <div className="linter-drawer-body">{diagnostics.diagnostics.length === 0 ? <p className="linter-clean">No architecture issues detected.</p> : diagnostics.diagnostics.map((item, index) => <article className="linter-item" key={`${item.code}-${index}`}><div className="diagnostic-line"><span className="diagnostic-code">{item.code}</span><span className={`diagnostic-severity severity-${item.severity}`}>{item.severity}</span></div><p>{item.message}</p><button className="fix-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onFix(item.stepIndex)}>Fix: {item.fixLabel} →</button></article>)}</div>}
-      <div className="linter-footer"><AlertTriangle size={11} /> Score deductions: −20 error / −10 warning / −3 info</div>
+      <Button className="linter-drawer-toggle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" aria-expanded={linterOpen} onClick={() => setLinterOpen((open) => !open)}><span><ShieldCheck size={13} /> Plan review · {diagnostics.diagnostics.length} findings</span><strong>{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Needs review' : diagnostics.diagnostics.length ? 'Review open items' : 'Looks complete'}</strong></Button>
+      {linterOpen && <div className="linter-drawer-body">{diagnostics.diagnostics.length === 0 ? <p className="linter-clean">No architecture issues detected.</p> : diagnostics.diagnostics.map((item, index) => <article className="linter-item" key={`${item.code}-${index}`}><div className="diagnostic-line"><span className="diagnostic-code">{item.code}</span><span className={`diagnostic-severity severity-${item.severity}`}>{item.severity}</span></div><p>{item.message}</p><Button className="fix-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onFix(item.stepIndex)}>Fix: {item.fixLabel} →</Button></article>)}</div>}
+      <div className="linter-footer"><Warning size={11} /> Export remains available while items are open.</div>
     </section>
-    <div className="right-footer"><span><FileCode2 size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />Pure spec output</span><span>{project.data.entities.length} tables</span></div>
+    <div className="right-footer"><span><FileCode size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />Generated locally</span><span>{project.data.entities.length} tables</span></div>
   </aside>
 }

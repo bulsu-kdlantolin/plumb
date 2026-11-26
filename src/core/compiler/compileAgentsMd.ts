@@ -23,6 +23,7 @@ export function compileAgentsMd(project: ProjectSpec): AgentInstructionFiles {
     '- Preserve the architecture and conventions listed in this bundle.',
     '- Keep secrets out of browser code, generated client artifacts, and committed environment files.',
     '- Enforce the declared authorization policy at every data boundary.',
+    ...project.securityRules.map((rule) => `- Security rule — ${rule.name || 'Unnamed'} (${rule.target || 'target TBD'}): ${rule.condition || 'condition TBD.'}`),
     '- Implement loading, empty, error, and overflow states for routes where applicable.',
     '- Keep changes scoped to the requested task and update relevant documentation.',
     '',
