@@ -11,7 +11,7 @@ import { useSpecStore } from '../store/useSpecStore'
 import { Loading } from 'loading-dev'
 import { compileProject, projectSlug } from '../core/compiler/compileProject'
 import { runSlopLinter } from '../core/linter/runSlopLinter'
-import { CommandPalette, type PaletteView } from '../components/ui/CommandPalette'
+import { CommandPalette } from '../components/ui/CommandPalette'
 
 export default function App() {
   const project = useSpecStore((state) => state.project)
@@ -33,9 +33,14 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
   const [compilerOpen, setCompilerOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [canvasRequest, setCanvasRequest] = useState<PaletteView | null>(null)
+  const [canvasMode, setCanvasMode] = useState<'plan' | 'canvas'>('plan')
+  const [canvasView, setCanvasView] = useState<'erd' | 'topology' | 'preview'>('erd')
   const files = useMemo(() => project ? compileProject(project) : null, [project])
   const diagnostics = useMemo(() => project ? runSlopLinter(project) : null, [project])
+  const selectStep = (step: number) => { setActiveStep(step); setCanvasMode('plan') }
+  const resetCanvas = () => { setCanvasMode('plan'); setCanvasView('erd') }
+  const openProject = (id: string) => { resetCanvas(); void selectProject(id) }
+  const createPlan = (name: string, idea: string, example?: boolean) => { resetCanvas(); void createProject(name, idea, example) }
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => {
@@ -81,13 +86,13 @@ export default function App() {
   }
 
   return <MotionConfig reducedMotion="user"><div className="workbench">
-    <TopBar projectName={project?.name ?? 'Start a plan'} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setCommandOpen(true)} exporting={exporting} exportAvailable={hydrated && Boolean(project)} saveStatus={saveStatus} onProjects={() => void selectProject(null)} onToggleCompiler={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} compilerOpen={compilerOpen} onCopyHandoff={() => void copyHandoff()} />
-    {!hydrated ? <div className="loading-state" role="status" aria-live="polite"><Loading size={24} color="var(--accent-primary)" /><span>Opening local plans</span></div> : !project ? <ProjectStart projects={projects} onCreate={(name, idea, example) => void createProject(name, idea, example)} onOpen={(id) => void selectProject(id)} onRename={(id, name) => void renameProject(id, name)} onDuplicate={(id) => void duplicateProject(id)} onDelete={(id) => void deleteProject(id)} /> : <div className={`shell${compilerOpen ? ' compiler-visible' : ' compiler-hidden'}`}>
-      <LeftRail activeStep={activeStep} onSelectStep={setActiveStep} project={project} saveStatus={saveStatus} />
-      <CenterCanvas project={project} activeStep={activeStep} onSelectStep={setActiveStep} onUpdateProject={(next) => updateProject(() => next)} requestedView={canvasRequest} onViewRequestHandled={() => setCanvasRequest(null)} />
-      {compilerOpen && files && diagnostics && <RightCompiler project={project} files={files} diagnostics={diagnostics} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={(step) => setActiveStep(step)} />}
+    <TopBar projectName={project?.name ?? 'Start a plan'} projects={projects} activeProjectId={project?.id ?? null} onSelectProject={openProject} alignmentScore={diagnostics?.alignmentScore ?? null} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onExport={() => void exportBundle()} onShowShortcuts={() => setCommandOpen(true)} exporting={exporting} exportAvailable={hydrated && Boolean(project)} saveStatus={saveStatus} onProjects={() => void selectProject(null)} onToggleCompiler={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} compilerOpen={compilerOpen} onCopyHandoff={() => void copyHandoff()} />
+    {!hydrated ? <div className="loading-state" role="status" aria-live="polite"><Loading size={24} color="var(--accent-primary)" /><span>Opening local plans</span></div> : !project ? <ProjectStart projects={projects} onCreate={createPlan} onOpen={openProject} onRename={(id, name) => void renameProject(id, name)} onDuplicate={(id) => { resetCanvas(); void duplicateProject(id) }} onDelete={(id) => void deleteProject(id)} /> : <div className={`shell${compilerOpen ? ' compiler-visible' : ' compiler-hidden'}`}>
+      <LeftRail activeStep={activeStep} onSelectStep={selectStep} project={project} saveStatus={saveStatus} />
+      <CenterCanvas project={project} activeStep={activeStep} onSelectStep={selectStep} onUpdateProject={(next) => updateProject(() => next)} mode={canvasMode} view={canvasView} onModeChange={setCanvasMode} onViewChange={setCanvasView} />
+      {compilerOpen && files && diagnostics && <RightCompiler project={project} files={files} diagnostics={diagnostics} activeFile={compilerTab} theme={theme} onSelectFile={setCompilerTab} onFix={selectStep} />}
     </div>}
-    <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} onStep={(step) => { setActiveStep(step); setCanvasRequest(null) }} onCanvas={(view) => { setCanvasRequest(view); setActiveStep(2) }} onOutput={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} onTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onProjects={() => void selectProject(null)} onCopy={() => void copyHandoff()} onExport={() => void exportBundle()} projectAvailable={Boolean(project)} />
+    <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} onStep={selectStep} onCanvas={(view) => { setCanvasView(view); setActiveStep(2); setCanvasMode('canvas') }} onOutput={() => { if (!compilerOpen) setCompilerTab('AI_HANDOFF.md'); setCompilerOpen((open) => !open) }} onTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} onProjects={() => void selectProject(null)} onCopy={() => void copyHandoff()} onExport={() => void exportBundle()} projectAvailable={Boolean(project)} />
     <Toaster theme={theme} position="bottom-right" toastOptions={{ classNames: { toast: 'plumb-toast', title: 'plumb-toast-title', description: 'plumb-toast-description' } }} />
     <span className="sr-only" aria-live="polite">{exporting ? 'Exporting context bundle' : ''}</span>
   </div></MotionConfig>

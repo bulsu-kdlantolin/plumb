@@ -16,7 +16,7 @@ export function Select({ value, options, onChange, className = '', disabled = fa
   return <SelectPrimitive.Root value={value} onValueChange={(nextValue) => onChange(String(nextValue ?? ''))} disabled={disabled} modal={false}>
     <SelectPrimitive.Trigger aria-label={label} className={`site-select-trigger ${className}`}>
       <SelectPrimitive.Value placeholder={placeholder ?? 'Choose an option'} />
-      <SelectPrimitive.Icon><CaretDown size={14} aria-hidden="true" /></SelectPrimitive.Icon>
+      <SelectPrimitive.Icon className="site-select-caret"><CaretDown size={14} aria-hidden="true" /></SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner sideOffset={4} className="site-select-positioner">

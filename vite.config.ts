@@ -1,6 +1,10 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -16,6 +20,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(projectRoot, 'src'),
+    },
+  },
   build: {
     rolldownOptions: {
       output: {
@@ -23,7 +32,7 @@ export default defineConfig({
           groups: [
             { name: 'xyflow', test: /node_modules[\\/]@xyflow[\\/]/, priority: 20 },
             { name: 'shiki', test: /node_modules[\\/](@shikijs|shiki)[\\/]/, priority: 20 },
-            { name: 'vendor', test: /node_modules[\\/]/, priority: 10, minSize: 20_000 },
+            { name: 'vendor', test: /node_modules[\\/]/, priority: 10, minSize: 20_000, maxSize: 400_000 },
           ],
         },
       },

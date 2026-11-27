@@ -1,6 +1,6 @@
 import { TextInput, TextArea } from '../ui/TextInput'
 import { Button } from '../ui/Button'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ReactFlow, Background, Controls, MarkerType, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import dagre from 'dagre'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -13,6 +13,7 @@ import { Step1ScopeForm } from '../pipeline/Step1ScopeForm'
 import { Step2StackForm } from '../pipeline/Step2StackForm'
 import { Step3DataApiForm } from '../pipeline/Step3DataApiForm'
 import { Step4DesignForm } from '../pipeline/Step4DesignForm'
+import { ClickSpark } from '../ui/ClickSpark'
 
 type View = 'erd' | 'topology' | 'preview'
 type CanvasNode = EntityNodeType | ServiceNodeType
@@ -30,8 +31,10 @@ interface CenterCanvasProps {
   activeStep: number
   onSelectStep: (step: number) => void
   onUpdateProject: (project: ProjectSpec) => void
-  requestedView?: View | null
-  onViewRequestHandled?: () => void
+  mode: 'plan' | 'canvas'
+  view: View
+  onModeChange: (mode: 'plan' | 'canvas') => void
+  onViewChange: (view: View) => void
 }
 
 function getErdNodes(entities: ProjectSpec['data']['entities']): CanvasNode[] {
@@ -89,48 +92,37 @@ function getTopology(stack: ProjectSpec['stack'], webhooks: ProjectSpec['apis'][
 
 function layoutNodes(nodes: CanvasNode[], edges: CanvasEdge[], direction: 'LR' | 'TB'): CanvasNode[] {
   const graph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({ rankdir: direction, nodesep: 60, ranksep: 110, marginx: 36, marginy: 36 })
-  nodes.forEach((node) => graph.setNode(node.id, { width: node.type === 'entity' ? 258 : 250, height: node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 104 }))
+  graph.setGraph({ rankdir: direction, nodesep: 65, ranksep: 120, marginx: 36, marginy: 36 })
+  nodes.forEach((node) => graph.setNode(node.id, { width: node.type === 'entity' ? 300 : 260, height: node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 104 }))
   edges.forEach((edge) => graph.setEdge(edge.source, edge.target))
   dagre.layout(graph)
   return nodes.map((node) => {
     const point = graph.node(node.id)
-    const width = node.type === 'entity' ? 258 : 250
+    const width = node.type === 'entity' ? 300 : 260
     const height = node.type === 'entity' ? 80 + ((node.data as EntityNodeData).fields.length * 29) : 104
     return { ...node, position: { x: point.x - width / 2, y: point.y - height / 2 } }
   })
 }
 
-export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProject, requestedView, onViewRequestHandled }: CenterCanvasProps) {
-  const [mode, setMode] = useState<'plan' | 'canvas'>('plan')
+export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProject, mode, view, onModeChange, onViewChange }: CenterCanvasProps) {
+  const [localNodes, setLocalNodes] = useState<{ view: View; nodes: CanvasNode[] } | null>(null)
+  const [localEdges, setLocalEdges] = useState<{ view: View; edges: CanvasEdge[] } | null>(null)
   const reduceMotion = useReducedMotion()
-  useEffect(() => { setMode('plan') }, [activeStep])
-  const [view, setView] = useState<View>('erd')
-  useEffect(() => {
-    if (!requestedView) return
-    setMode('canvas')
-    setView(requestedView)
-    setLocalNodes(null)
-    setLocalEdges(null)
-    onViewRequestHandled?.()
-  }, [requestedView, onViewRequestHandled])
-  const [localNodes, setLocalNodes] = useState<CanvasNode[] | null>(null)
-  const [localEdges, setLocalEdges] = useState<CanvasEdge[] | null>(null)
   const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({})
   const baseErdNodes = useMemo(() => getErdNodes(project.data.entities), [project.data.entities])
   const baseErdEdges = useMemo(() => getErdEdges(project.data.entities), [project.data.entities])
   const topology = useMemo(() => getTopology(project.stack, project.apis.webhooks), [project.stack, project.apis.webhooks])
   const nodes = view === 'erd' ? baseErdNodes : topology.nodes
   const edges = view === 'erd' ? baseErdEdges : topology.edges
-  const flowNodes = (localNodes ?? nodes).map((node) => ({ ...node, data: nodes.find((latest) => latest.id === node.id)?.data ?? node.data })) as CanvasNode[]
-  const flowEdges = localEdges ?? edges
+  const flowNodes = (localNodes?.view === view ? localNodes.nodes : nodes).map((node) => ({ ...node, data: nodes.find((latest) => latest.id === node.id)?.data ?? node.data })) as CanvasNode[]
+  const flowEdges = localEdges?.view === view ? localEdges.edges : edges
 
   const onNodesChange = useCallback((changes: NodeChangeset<CanvasNode>) => {
-    setLocalNodes((current) => changes.applyTo(current ?? nodes))
-  }, [nodes])
+    setLocalNodes((current) => ({ view, nodes: changes.applyTo(current?.view === view ? current.nodes : nodes) }))
+  }, [nodes, setLocalNodes, view])
   const onEdgesChange = useCallback((changes: EdgeChangeset<CanvasEdge>) => {
-    setLocalEdges((current) => changes.applyTo(current ?? edges))
-  }, [edges])
+    setLocalEdges((current) => ({ view, edges: changes.applyTo(current?.view === view ? current.edges : edges) }))
+  }, [edges, setLocalEdges, view])
 
   const onDelete = useCallback(({ edges: deletedEdges }: { nodes: CanvasNode[]; edges: CanvasEdge[] }) => {
     if (view !== 'erd' || deletedEdges.length === 0) return
@@ -157,13 +149,13 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
     const laidOut = layoutNodes(nodes, edges, view === 'erd' ? 'LR' : 'TB')
     if (view === 'erd') {
       const positions = new Map(laidOut.map((node) => [node.id, node.position]))
-      setLocalNodes(laidOut)
+      setLocalNodes({ view, nodes: laidOut })
       onUpdateProject({ ...project, data: { ...project.data, entities: project.data.entities.map((entity) => ({ ...entity, position: positions.get(entity.id) ?? entity.position })) } })
-    } else setLocalNodes(laidOut)
-    setLocalEdges(edges)
+    } else setLocalNodes({ view, nodes: laidOut })
+    setLocalEdges({ view, edges })
   }
 
-  const changeView = (next: View) => { setView(next); setLocalNodes(null); setLocalEdges(null) }
+  const changeView = (next: View) => { onViewChange(next); setLocalNodes(null); setLocalEdges(null) }
   const handleViewTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, current: View) => {
     const currentIndex = tabs.findIndex((tab) => tab.id === current)
     let nextIndex: number | undefined
@@ -181,20 +173,20 @@ export function CenterCanvas({ project, activeStep, onSelectStep, onUpdateProjec
   const currentLabel = ['SCOPE', 'STACK', 'DATA', 'UI'][activeStep] ?? 'DATA'
 
   if (mode === 'plan') return <main className="center-canvas plan-canvas">
-    <div className="plan-toolbar"><div><span className="micro-label">PHASE 0{activeStep + 1} / 04</span><strong>{['Product definition', 'Technology choices', 'System architecture', 'Experience & delivery'][activeStep]}</strong></div><Button type="button" className="flow-action" onClick={() => setMode('canvas')}>OPEN CANVAS →</Button></div>
+    <div className="plan-toolbar"><div><span className="micro-label">PHASE 0{activeStep + 1} / 04</span><strong>{['Product definition', 'Technology choices', 'System architecture', 'Experience & delivery'][activeStep]}</strong></div><Button type="button" className="flow-action" onClick={() => onModeChange('canvas')}>OPEN CANVAS →</Button></div>
     <div className="plan-editor-scroll"><AnimatePresence mode="wait" initial={false}><motion.div key={activeStep} initial={{ opacity: 0, x: reduceMotion ? 0 : 5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: reduceMotion ? 0 : -3 }} transition={{ duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}>{activeStep === 0 && <Step1ScopeForm project={project} onChange={onUpdateProject} />}{activeStep === 1 && <Step2StackForm project={project} onChange={onUpdateProject} />}{activeStep === 2 && <Step3DataApiForm project={project} onChange={onUpdateProject} />}{activeStep === 3 && <><Step4DesignForm project={project} onChange={onUpdateProject} /><ResourceLinks project={project} onChange={onUpdateProject} /></>}</motion.div></AnimatePresence></div>
   </main>
 
   return <main className="center-canvas">
     <div className="canvas-toolbar canvas-toolbar-views">
-      <div className="canvas-context"><Button type="button" className="canvas-view-tab" onClick={() => setMode('plan')}>← PLAN</Button><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
+      <div className="canvas-context"><Button type="button" className="canvas-view-tab" onClick={() => onModeChange('plan')}>← PLAN</Button><span>[0{activeStep + 1} // {currentLabel}]</span><span>/</span><strong>{view === 'erd' ? 'RELATIONAL SCHEMA' : view === 'topology' ? 'SYSTEM TOPOLOGY' : 'TOKEN VERIFICATION'}</strong></div>
       <div className="canvas-view-switcher" role="tablist" aria-label="Canvas view">
-        {tabs.map(({ id, label, icon: Icon }) => <Button key={id} ref={(element) => { tabRefs.current[id] = element }} id={`canvas-tab-${id}`} type="button" role="tab" aria-selected={view === id} aria-controls="canvas-panel" tabIndex={view === id ? 0 : -1} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleViewTabKeyDown(event, id)} onClick={() => changeView(id)}><Icon size={13} />{label}</Button>)}
+        {tabs.map(({ id, label, icon: Icon }) => <Button key={id} ref={(element) => { tabRefs.current[id] = element }} id={`canvas-tab-${id}`} type="button" role="tab" aria-selected={view === id} aria-controls="canvas-panel" tabIndex={view === id ? 0 : -1} className="canvas-view-tab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onKeyDown={(event) => handleViewTabKeyDown(event, id)} onClick={() => changeView(id)}><Icon size={13} />{label}{view === id && <motion.span aria-hidden="true" className="tab-active-indicator" layoutId="canvas-active-tab" transition={reduceMotion ? { duration: 0 } : { duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }} />}</Button>)}
       </div>
     </div>
     <div className="canvas-flow-tools">
       <span className="canvas-coordinate">{view === 'erd' ? `${project.data.entities.length} TABLES / ${baseErdEdges.length} RELATIONS` : view === 'topology' ? `${topology.nodes.length} SERVICES / ${topology.edges.length} LINKS` : 'DESIGN TOKENS / LIVE'}</span>
-      {view !== 'preview' && <Button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><GridFour size={13} /> AUTO-LAYOUT</Button>}
+      {view !== 'preview' && <ClickSpark><Button className="flow-action focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={autoLayout}><GridFour size={13} /> AUTO-LAYOUT</Button></ClickSpark>}
       {view === 'preview' && <span className="canvas-coordinate"><ArrowLineDown size={12} /> EXPORT PREVIEW</span>}
     </div>
     <div id="canvas-panel" role="tabpanel" aria-labelledby={activeTabId} tabIndex={0} className={`canvas-scroll canvas-flow-area ${view === 'preview' ? 'preview-area' : ''}`}>
