@@ -1,4 +1,4 @@
-import { Button } from '../ui/Button'
+﻿import { Button } from '../ui/Button'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -24,7 +24,7 @@ const fileTabs: { file: CompiledFileName; label: string; lang: 'markdown' | 'sql
   { file: 'SCHEMA.sql', label: 'SCHEMA.sql', lang: 'sql' },
   { file: 'API_SPEC.md', label: 'API_SPEC.md', lang: 'markdown' },
   { file: 'PROMPT_PLAYBOOK.md', label: 'PLAYBOOK.md', lang: 'markdown' },
-  { file: 'AI_HANDOFF.md', label: 'AI HANDOFF', lang: 'markdown' },
+  { file: 'AI_HANDOFF.md', label: 'AI Handoff', lang: 'markdown' },
   { file: 'RESOURCE_LINKS.md', label: 'RESOURCES', lang: 'markdown' },
 ]
 
@@ -108,10 +108,11 @@ export function RightCompiler({ project, files, diagnostics, activeFile, theme, 
       {highlighted ? <div className="shiki-output" dangerouslySetInnerHTML={{ __html: highlighted }} /> : <pre className="compiler-code">{content}</pre>}
     </div>
     <section className={`linter-drawer${linterOpen ? ' open' : ''}`}>
-      <Button className="linter-drawer-toggle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" aria-expanded={linterOpen} onClick={() => setLinterOpen((open) => !open)}><span><ShieldCheck size={13} /> Plan review · {diagnostics.diagnostics.length} findings</span><strong>{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Needs review' : diagnostics.diagnostics.length ? 'Review open items' : 'Looks complete'}</strong></Button>
-      <AnimatePresence initial={false}>{linterOpen && <motion.div key="linter-content" className="linter-drawer-motion" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}><div className="linter-drawer-body">{diagnostics.diagnostics.length === 0 ? <p className="linter-clean">No architecture issues detected.</p> : diagnostics.diagnostics.map((item, index) => <article className="linter-item" key={`${item.code}-${index}`}><div className="diagnostic-line"><span className="diagnostic-code">{item.code}</span><span className={`diagnostic-severity severity-${item.severity}`}>{item.severity}</span></div><p>{item.message}</p><Button className="fix-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onFix(item.stepIndex)}>Fix: {item.fixLabel} →</Button></article>)}</div></motion.div>}</AnimatePresence>
+      <Button className="linter-drawer-toggle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" aria-expanded={linterOpen} onClick={() => setLinterOpen((open) => !open)}><span><ShieldCheck size={13} /> Plan review: {diagnostics.diagnostics.length} findings</span><strong>{diagnostics.diagnostics.some((d) => d.severity === 'error') ? 'Needs review' : diagnostics.diagnostics.length ? 'Review open items' : 'Looks complete'}</strong></Button>
+      <AnimatePresence initial={false}>{linterOpen && <motion.div key="linter-content" className="linter-drawer-motion" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}><div className="linter-drawer-body">{diagnostics.diagnostics.length === 0 ? <p className="linter-clean">No architecture issues detected.</p> : diagnostics.diagnostics.map((item, index) => <article className="linter-item" key={`${item.code}-${index}`}><div className="diagnostic-line"><span className="diagnostic-code">{item.code}</span><span className={`diagnostic-severity severity-${item.severity}`}>{item.severity}</span></div><p>{item.message}</p><Button className="fix-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={() => onFix(item.stepIndex)}>{item.fixLabel}</Button></article>)}</div></motion.div>}</AnimatePresence>
       <div className="linter-footer"><Warning size={11} /> Export remains available while items are open.</div>
     </section>
     <div className="right-footer"><span><FileCode size={10} style={{ verticalAlign: 'middle', marginRight: 4 }} />Generated locally</span><span>{project.data.entities.length} tables</span></div>
   </aside>
 }
+

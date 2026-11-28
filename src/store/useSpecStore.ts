@@ -5,7 +5,7 @@ import type { CompiledFileName } from '../core/compiler/compileProject'
 
 export const PULSEBOARD_EXAMPLE: ProjectSpec = {
   id: 'pulseboard',
-  name: 'PulseBoard â€” Team Metrics Studio',
+  name: 'PulseBoard - Team Metrics Studio',
   description: 'A shared studio for turning team activity into clear, actionable metrics.',
   updatedAt: '2026-11-22T09:30:00.000Z',
   scope: {
@@ -21,14 +21,14 @@ export const PULSEBOARD_EXAMPLE: ProjectSpec = {
       { path: '/app', authRequired: true, redirectTo: '/login', states: ['loading', 'empty', 'error', 'overflow'] },
       { path: '/settings/team', authRequired: true, redirectTo: '/login', states: ['loading', 'error'] },
     ],
-    nonGoals: ['No employee surveillance or individual productivity scoring.', 'No public social feed or gamified leaderboards.', 'No replacement for the teamâ€™s source-of-truth issue tracker.'],
+    nonGoals: ['No employee surveillance or individual productivity scoring.', 'No public social feed or gamified leaderboards.', "No replacement for the team's source-of-truth issue tracker."],
   },
   stack: {
     architecturePattern: 'Local-first modular monolith',
     frontend: 'React 19 + TypeScript + Vite',
     backend: 'Supabase Edge Functions',
     database: 'PostgreSQL 16',
-    authStrategy: 'Supabase Auth â€” email magic link',
+    authStrategy: 'Supabase Auth - email magic link',
     stateManagement: 'Zustand + IndexedDB cache',
     folderStructure: ['src/app', 'src/components', 'src/core', 'src/db', 'src/store', 'src/types'],
     dependencies: {

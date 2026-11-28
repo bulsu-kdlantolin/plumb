@@ -27,7 +27,7 @@ export function ProjectSwitcher({ projects, activeProjectId, onSelect, onShowAll
             <span className="project-switch-copy"><strong>{project.name || 'Untitled plan'}</strong><span>{project.description || 'No one-sentence idea yet'}</span></span>
             {project.id === activeProjectId && <Check size={14} aria-hidden="true" />}
           </Button>)}
-          <Button className="project-switch-all" onClick={() => { setOpen(false); onShowAll() }}>ALL PLANS <span aria-hidden="true">→</span></Button>
+          <Button className="project-switch-all" onClick={() => { setOpen(false); onShowAll() }}>All plans</Button>
         </Popover.Popup>
       </Popover.Positioner>
     </Popover.Portal>

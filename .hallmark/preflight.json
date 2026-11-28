@@ -1,0 +1,19 @@
+﻿{
+    "scanned":  "2026-11-28",
+    "findings":  {
+                     "fonts":  "CSS declares Space Grotesk, IBM Plex Sans, JetBrains Mono, plus Geist Variable via import/theme mapping (src/index.css:1-8,626,724-726).",
+                     "palette":  "Rust / soot semantic dark and light tokens in src/index.css:12-80; additional literal shadcn OKLCH palette and raw shadow color remain at src/index.css:724-786 and 272.",
+                     "motion":  "motion/react with 120-140ms transitions and reduced-motion support (src/app/App.tsx:95; src/index.css:116,625).",
+                     "spacing":  "Mostly compact workbench layout, with 158 off-scale spacing declarations flagged by Hallmark (src/index.css:137 onward).",
+                     "framework":  "React 19, TypeScript, Vite, Tailwind v4; app shell in src/app/App.tsx; public document in index.html."
+                 },
+    "preserve":  [
+                     "Rust/soot palette and semantic theme tokens",
+                     "local-first project planning flow and IndexedDB state",
+                     "four-step pipeline, canvas, compiler, and export behavior",
+                     "current component and route structure"
+                 ],
+    "introduce":  [
+
+                  ]
+}

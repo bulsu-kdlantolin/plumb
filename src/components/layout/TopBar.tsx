@@ -1,4 +1,4 @@
-import { Button } from '../ui/Button'
+﻿import { Button } from '../ui/Button'
 import { Command, DownloadSimple, FilePlus, SidebarSimple, Copy } from '@phosphor-icons/react'
 import { ThemeToggle } from '../ui/ThemeToggle'
 import { Ring } from 'loading-dev'
@@ -41,13 +41,14 @@ export function TopBar({ projectName, projects, activeProjectId, alignmentScore,
         <div className="status-line" role="status" aria-live="polite">{activeProjectId && <>{saveStatus === 'saving' && <Ring size={13} color="var(--accent-primary)" duration={700} />}<span className="status-dot" data-status={saveStatus} /></>}{saveLabel}</div>
         <div className="topbar-actions">
           <AlignmentScore score={alignmentScore} />
-          <Button className="icon-button" onClick={onToggleCompiler} aria-pressed={compilerOpen} disabled={!exportAvailable}><SidebarSimple size={14} /><span>{compilerOpen ? 'HIDE OUTPUT' : 'HANDOFF'}</span></Button>
-          <Button className="icon-button" onClick={onCopyHandoff} disabled={!exportAvailable} title="Copy the master prompt for your coding agent"><Copy size={14} /><span>COPY PROMPT</span></Button>
-          <Button className="export-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={exportAvailable ? onExport : onProjects} disabled={exporting || (!exportAvailable && saveStatus === 'loading')}>{exporting ? <Ring size={14} color="var(--text-on-accent)" duration={700} /> : exportAvailable ? <DownloadSimple size={13} /> : saveStatus === 'loading' ? <Ring size={13} color="var(--text-on-accent)" duration={700} /> : <FilePlus size={13} />}{exporting ? 'BUILDING ZIP' : exportAvailable ? 'EXPORT BUNDLE' : saveStatus === 'loading' ? 'LOADING SPEC' : 'CREATE PLAN'}</Button>
-          <Button className="icon-button shortcut-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={onShowShortcuts} aria-label="Show keyboard shortcuts"><Command size={14} /><span>⌘ K</span></Button>
+          <Button className="icon-button" onClick={onToggleCompiler} aria-pressed={compilerOpen} disabled={!exportAvailable}><SidebarSimple size={14} /><span>{compilerOpen ? 'Hide output' : 'Handoff'}</span></Button>
+          <Button className="icon-button" onClick={onCopyHandoff} disabled={!exportAvailable} title="Copy the master prompt for your coding agent"><Copy size={14} /><span>Copy prompt</span></Button>
+          <Button className="export-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={exportAvailable ? onExport : onProjects} disabled={exporting || (!exportAvailable && saveStatus === 'loading')}>{exporting ? <Ring size={14} color="var(--text-on-accent)" duration={700} /> : exportAvailable ? <DownloadSimple size={13} /> : saveStatus === 'loading' ? <Ring size={13} color="var(--text-on-accent)" duration={700} /> : <FilePlus size={13} />}{exporting ? 'BUILDING ZIP' : exportAvailable ? 'EXPORT BUNDLE' : saveStatus === 'loading' ? 'LOADING SPEC' : 'Create plan'}</Button>
+          <Button className="icon-button shortcut-button focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 hover:bg-[var(--bg-elevated)] active:translate-y-px motion-reduce:transform-none disabled:cursor-not-allowed disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-primary)]" onClick={onShowShortcuts} aria-label="Show keyboard shortcuts"><Command size={14} /><span>Cmd K</span></Button>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
       </div>
     </header>
   )
 }
+
